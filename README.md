@@ -1,4 +1,4 @@
-<img width="2166" height="135" alt="image" src="https://github.com/user-attachments/assets/607c52f1-2d51-4a73-8bc5-9bf47b50d6b0" /><img width="2906" height="42" alt="image" src="https://github.com/user-attachments/assets/4c3d1443-2bb4-4948-ba24-c75524113de4" /># Praktikum-1-Komputasi-Numerik
+Praktikum-1-Komputasi-Numerik
 
 #PPT 2
 
