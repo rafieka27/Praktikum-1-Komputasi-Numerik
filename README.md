@@ -1,4 +1,4 @@
-#**Praktikum-1-Komputasi-Numerik**
+# Praktikum-1-Komputasi-Numerik
 
 #PPT 2
 
