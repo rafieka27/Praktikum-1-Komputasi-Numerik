@@ -19,12 +19,14 @@ def hitung_secant():
         text_output.insert(tk.END, "Iter |    x0    |    x1    |    x2    |   f(x2)  |   Error  \n")
         text_output.insert(tk.END, "-"*65 + "\n")
         
+        x2 = x1 # Inisialisasi awal
+        
         for i in range(max_iter):
             f_x0 = f(x0)
             f_x1 = f(x1)
             
             if f_x1 - f_x0 == 0:
-                text_output.insert(tk.END, f"\n[!] Dihentikan: Pembagian dengan nol terdeteksi.")
+                text_output.insert(tk.END, f"\n[PERINGATAN] Dihentikan: Pembagian dengan nol terdeteksi.")
                 break
                 
             x2 = x1 - f_x1 * ((x1 - x0) / (f_x1 - f_x0))
@@ -35,24 +37,24 @@ def hitung_secant():
             
             if error < tol:
                 text_output.insert(tk.END, "-"*65 + "\n")
-                text_output.insert(tk.END, f"✅ AKAR DITEMUKAN: {x2:.6f}\n")
+                text_output.insert(tk.END, f"HASIL: Akar ditemukan pada x = {x2:.6f}\n")
                 return
                 
             x0 = x1
             x1 = x2
             
         text_output.insert(tk.END, "-"*65 + "\n")
-        text_output.insert(tk.END, f"❌ Iterasi maksimum tercapai. Akar hampiran: {x2:.6f}\n")
+        text_output.insert(tk.END, f"HASIL: Iterasi maksimum tercapai. Akar hampiran: {x2:.6f}\n")
         
     except Exception as e:
-        messagebox.showerror("Error Input", f"Cek kembali input Anda!\nPastikan format fungsi benar (Contoh: x**2 - 4 bukan x^2 - 4).\nDetail Error: {e}")
+        messagebox.showerror("Error Input", f"Cek kembali input Anda!\nPastikan format fungsi benar (Contoh: x**2 - 4).\nDetail Error: {e}")
 
 root = tk.Tk()
 root.title("Kalkulator Akar - Metode Secant")
 root.geometry("550x450")
 root.configure(padx=20, pady=20)
 
-tk.Label(root, text="Pencarian Akar Persamaan (Metode Secant)", font=("Arial", 14, "bold")).grid(row=0, column=0, columnspan=2, pady=(0, 15))
+tk.Label(root, text="Pencarian Akar Persamaan (Metode Secant)", font=("Arial", 12, "bold")).grid(row=0, column=0, columnspan=2, pady=(0, 15))
 
 tk.Label(root, text="Fungsi f(x) :").grid(row=1, column=0, sticky="w")
 entry_func = tk.Entry(root, width=30)
