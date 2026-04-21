@@ -1,1 +1,1892 @@
+|    NRP     |           Nama             |
+| :--------: |       :------------:       |
+| 5025251219 | Farrel Fahrezi Rizvanala|
+| 5025251200 | Rafi Eka Pramudya                    |
+| 5025251231 | Nichola Matthew Hutabarat           |
+
+# Praktikum Modul 2 _(Module 2 Lab Work)_
+
+</div>
+
+### Daftar Soal _(Task List)_
+
+- [Task 1 - Tim Biru](/task-1/)
+
+- [Task 2 - DEANND'S Adventure](/task-2/)
+
+- [Task 3 - Simulasi Pertempuran Laut](/task-3/)
+
+---
+
+### Laporan Resmi Praktikum Modul 2 _(Module 2 Lab Work Report)_
+
+Tulis laporan di template berikut!
+
+_Write your lab work on the template here!_
+
+---
+
+# Task 1 - Tim Biru
+_(Blue Team)_
+
+## A. Langkah-langkah & Potongan Kode, Screenshot, Kode Penuh  
+_(Steps & Code Snippets, Screenshot, Full Code)_
+
+### Langkah-langkah & Potongan Kode _(Steps & Code Snippets)_
+Jadi di bagian A ini kita bikin extract.c buat otomatis ekstrak evidence.zip ke folder logs_dump, abis itu langsung hapus zip nya. Karena gak boleh pake system() atau popen(), jadinya kita pake fork() sama execvp().
+
+Pertama bikin dulu folder logs_dump pake mkdir ;
+```c
+mkdir("logs_dump", 0755);
+```
+Terus fork pertama buat jalanin unzip nya ;
+```c
+pid_t pid = fork();
+if (pid == 0) {
+    char *args[] = {"unzip", "-o", "evidence.zip", "-d", "logs_dump", NULL};
+    execvp("unzip", args);
+    exit(1);
+}
+wait(&status);
+```
+Nah abis unzip selesai, fork lagi buat hapus evidence.zip nya  ;
+```c
+pid = fork();
+if (pid == 0) {
+    char *args[] = {"rm", "evidence.zip", NULL};
+    execvp("rm", args);
+    exit(1);
+}
+wait(&status);
+```
+### Screenshot _(Screenshot)_
+
+<img width="1362" height="337" alt="image" src="https://github.com/user-attachments/assets/85acfdd7-2937-4cf5-89eb-b710f4bb460f" />
+
+
+### Kode Penuh _(Full Code)_
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+
+int main() {
+    mkdir("logs_dump", 0755);
+
+
+    pid_t pid = fork();
+
+    if (pid < 0) {
+        perror("fork gagal");
+        return 1;
+    }
+
+    if (pid == 0) {
+        char *args[] = {"unzip", "-o", "evidence.zip", "-d", "logs_dump", NULL};
+        execvp("unzip", args);
+        perror("execvp gagal");
+        exit(1);
+    }
+
+    int status;
+    wait(&status);
+
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+        printf("ekstraksi gagal\n");
+        return 1;
+    }
+
+    pid = fork();
+
+    if (pid < 0) {
+        perror("fork gagal");
+        return 1;
+    }
+
+    if (pid == 0) {
+        char *args[] = {"rm", "evidence.zip", NULL};
+        execvp("rm", args);
+        perror("execvp gagal");
+        exit(1);
+    }
+
+    wait(&status);
+
+    printf("selesai, evidence.zip sudah dihapus\n");
+    return 0;
+}
+```
+
+## B. Langkah-langkah & Potongan Kode, Screenshot, Kode Penuh  
+_(Steps & Code Snippets, Screenshot, Full Code)_
+
+### Langkah-langkah & Potongan Kode _(Steps & Code Snippets)_
+classify.c ini tugasnya ngelompokin file log di logs_dump/ berdasarkan jenis serangan yang ada di depan nama filenya (sebelum underscore pertama). Prosesnya dijalanin paralel, tiap jenis serangan dapet 1 child process sendiri.
+
+Buat ambil jenis serangan dari nama file caranya gini :
+```c
+void get_type(char *fname, char *out) {
+    int i = 0;
+    while (fname[i] && fname[i] != '_') {
+        out[i] = fname[i];
+        i++;
+    }
+    out[i] = '\0';
+}
+```
+
+Sebelum fork, parent baca dulu semua file buat ngumpulin daftar tipe yang ada  :
+```c
+while ((entry = readdir(d)) != NULL) {
+    if (entry->d_type != DT_REG) continue;
+    char type[64];
+    get_type(entry->d_name, type);
+    // cek duplikat, kalau belum ada baru tambah ke list
+}
+```
+Baru setelah list nya lengkap, fork satu child per tipe :
+```c
+for (int i = 0; i < type_count; i++) {
+    pid_t pid = fork();
+    if (pid == 0) {
+        // buat folder, pindahkan semua file tipe ini
+        mkdir(dest, 0755);
+        // rename() tiap file yang cocok
+        exit(0);
+    }
+}
+for (int i = 0; i < type_count; i++) wait(NULL);
+```
+Pake rename() bukan cp biar lebih efisien, gak perlu fork tambahan juga.
+
+Catatan: folder evidence_raw yang ikut keekstrak dari zip dihapus manual karena emang bukan jenis serangan.
+
+### Screenshot _(Screenshot)_
+
+
+<img width="749" height="317" alt="image" src="https://github.com/user-attachments/assets/99f5289c-bcc4-41ec-80d5-3751cfda4053" />
+
+
+
+atau 
+
+
+<img width="1226" height="245" alt="image" src="https://github.com/user-attachments/assets/6f4e2cd9-8b52-4972-8d49-3e9596a0cfb2" />
+
+
+
+### Kode Penuh _(Full Code)_
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <dirent.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+
+void get_type(char *fname, char *out) {
+    int i = 0;
+    while (fname[i] && fname[i] != '_') {
+        out[i] = fname[i];
+        i++;
+    }
+    out[i] = '\0';
+}
+
+int main() {
+    DIR *d = opendir("logs_dump");
+    if (!d) {
+        perror("gagal buka logs_dump");
+        return 1;
+    }
+
+    char types[50][64];
+    int type_count = 0;
+
+    struct dirent *entry;
+    while ((entry = readdir(d)) != NULL) {
+        if (entry->d_type != DT_REG) continue;
+
+        char type[64];
+        get_type(entry->d_name, type);
+
+        int found = 0;
+        for (int i = 0; i < type_count; i++) {
+            if (strcmp(types[i], type) == 0) {
+                found = 1;
+                break;
+            }
+        }
+        if (!found) {
+            strcpy(types[type_count++], type);
+        }
+    }
+    closedir(d);
+
+    for (int i = 0; i < type_count; i++) {
+        pid_t pid = fork();
+
+        if (pid < 0) {
+            perror("fork gagal");
+            return 1;
+        }
+
+        if (pid == 0) {
+            char dest[128];
+            snprintf(dest, sizeof(dest), "logs_dump/%s", types[i]);
+            mkdir(dest, 0755);
+
+            DIR *d2 = opendir("logs_dump");
+            struct dirent *e;
+            while ((e = readdir(d2)) != NULL) {
+                if (e->d_type != DT_REG) continue;
+
+                char t[64];
+                get_type(e->d_name, t);
+                if (strcmp(t, types[i]) != 0) continue;
+
+                char src[256], dst[256];
+                snprintf(src, sizeof(src), "logs_dump/%s", e->d_name);
+                snprintf(dst, sizeof(dst), "logs_dump/%s/%s", types[i], e->d_name);
+
+                rename(src, dst);
+            }
+            closedir(d2);
+
+            printf("[%s] selesai dipindahkan\n", types[i]);
+            exit(0);
+        }
+    }
+
+    for (int i = 0; i < type_count; i++) {
+        wait(NULL);
+    }
+
+    printf("klasifikasi selesai\n");
+    return 0;
+}
+```
+
+## C. Langkah-langkah & Potongan Kode, Screenshot, Kode Penuh  
+_(Steps & Code Snippets, Screenshot, Full Code)_
+
+### Langkah-langkah & Potongan Kode _(Steps & Code Snippets)_
+watcher.c ini daemon yang jalan terus di background. Kerjaannya pantau folder honeypot/ tiap 1 detik, kalau nemu file .exe atau .pcap langsung dipindah ke quarantine/ dan dicatet ke security.log.
+
+Masalah yang sempet bikin pusing itu soal path, begitu daemon chdir("/") semua path relatif langsung ga berlaku. Solusinya simpan path absolut dulu sebelum fork:
+```c
+char cwd[256];
+getcwd(cwd, sizeof(cwd));
+snprintf(honeypot_path,   sizeof(honeypot_path),   "%s/honeypot",     cwd);
+snprintf(quarantine_path, sizeof(quarantine_path), "%s/quarantine",   cwd);
+snprintf(logfile_path,    sizeof(logfile_path),    "%s/security.log", cwd);
+snprintf(pidfile_path,    sizeof(pidfile_path),    "%s/watcher.pid",  cwd);
+```
+Buat daemonisasi nya pake double fork biar proses beneran lepas dari terminal :
+```c
+pid = fork();
+if (pid > 0) exit(0);   // parent pertama keluar
+setsid();
+pid = fork();
+if (pid > 0) exit(0);   // parent kedua keluar
+chdir("/");
+```
+Terus buat SIGTERM, daemon nya gak langsung mati, tutup log dulu baru exit    :
+```c
+void handle_sigterm(int sig) {
+    write_log("Daemon berhenti");
+    fclose(log_file);
+    remove(pidfile_path);
+    exit(0);
+}
+```
+Oh iya satu hal, nama variabel log nya sempet pake logf tapi ternyata konflik sama fungsi bawaan C, jadi diganti jadi log_file.
+
+
+### Screenshot _(Screenshot)_
+
+ <img width="788" height="119" alt="image" src="https://github.com/user-attachments/assets/5f475732-d551-47ed-a184-3178232b168f" />
+
+
+### Kode Penuh _(Full Code)_
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <signal.h>
+#include <time.h>
+#include <sys/stat.h>
+
+FILE *log_file = NULL;
+
+char honeypot_path[512];
+char quarantine_path[512];
+char logfile_path[512];
+char pidfile_path[512];
+
+void write_log(char *msg) {
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+    fprintf(log_file, "[%04d-%02d-%02d %02d:%02d:%02d] %s\n",
+        t->tm_year+1900, t->tm_mon+1, t->tm_mday,
+        t->tm_hour, t->tm_min, t->tm_sec, msg);
+    fflush(log_file);
+}
+
+void handle_sigterm(int sig) {
+    write_log("Daemon berhenti");
+    fclose(log_file);
+    remove(pidfile_path);
+    exit(0);
+}
+
+int is_suspicious(char *name) {
+    char *ext = strrchr(name, '.');
+    if (!ext) return 0;
+    return (strcmp(ext, ".exe") == 0 || strcmp(ext, ".pcap") == 0);
+}
+
+int main() {
+    char cwd[256];
+    pid_t pid;
+    FILE *pf;
+
+    getcwd(cwd, sizeof(cwd));
+    snprintf(honeypot_path,   sizeof(honeypot_path),   "%s/honeypot",     cwd);
+    snprintf(quarantine_path, sizeof(quarantine_path), "%s/quarantine",   cwd);
+    snprintf(logfile_path,    sizeof(logfile_path),    "%s/security.log", cwd);
+    snprintf(pidfile_path,    sizeof(pidfile_path),    "%s/watcher.pid",  cwd);
+
+    mkdir(honeypot_path, 0755);
+    mkdir(quarantine_path, 0755);
+
+    pid = fork();
+    if (pid < 0) exit(1);
+    if (pid > 0) exit(0);
+
+    setsid();
+    umask(0);
+
+    pid = fork();
+    if (pid < 0) exit(1);
+    if (pid > 0) exit(0);
+
+    chdir("/");
+    close(STDIN_FILENO);
+    close(STDOUT_FILENO);
+    close(STDERR_FILENO);
+
+    pf = fopen(pidfile_path, "w");
+    if (pf) {
+        fprintf(pf, "%d\n", getpid());
+        fclose(pf);
+    }
+
+    log_file = fopen(logfile_path, "a");
+    signal(SIGTERM, handle_sigterm);
+
+    while (1) {
+        DIR *d = opendir(honeypot_path);
+        if (d) {
+            struct dirent *e;
+            while ((e = readdir(d)) != NULL) {
+                char msg[512], src[512], dst[512];
+                if (e->d_type != DT_REG) continue;
+                if (!is_suspicious(e->d_name)) continue;
+                snprintf(msg, sizeof(msg), "Peringatan! Menemukan file mencurigakan: %s", e->d_name);
+                write_log(msg);
+                snprintf(src, sizeof(src), "%s/%s", honeypot_path, e->d_name);
+                snprintf(dst, sizeof(dst), "%s/%s", quarantine_path, e->d_name);
+                rename(src, dst);
+                snprintf(msg, sizeof(msg), "Berhasil mengkarantina file: %s", e->d_name);
+                write_log(msg);
+            }
+            closedir(d);
+        }
+        sleep(1);
+    }
+    return 0;
+}
+```
+
+## D. Langkah-langkah & Potongan Kode, Screenshot, Kode Penuh  
+_(Steps & Code Snippets, Screenshot, Full Code)_
+
+### Langkah-langkah & Potongan Kode _(Steps & Code Snippets)_
+report.c ini baca hasil klasifikasi di logs_dump/, hitung jumlah file per jenis serangan, terus cari 5 IP yang paling sering muncul. Hasilnya ditulis ke threat_report.txt, abis itu dibuat arsip backup_evidence.zip lewat child process.
+
+IP nya diambil dari bagian kedua nama file, di antara underscore pertama dan kedua  :
+```c
+void get_ip(char *fname, char *out) {
+    char *p = strchr(fname, '_');
+    int i;
+    if (!p) { out[0] = '\0'; return; }
+    p++;
+    for (i = 0; p[i] && p[i] != '_'; i++)
+        out[i] = p[i];
+    out[i] = '\0';
+}
+```
+Hasil hitungan nya diurutin dari terbesar ke terkecil pake bubble sort ;
+```c
+void sort_desc(Entry *arr, int n) {
+    for (int i = 0; i < n-1; i++)
+        for (int j = i+1; j < n; j++)
+            if (arr[j].count > arr[i].count)
+                swap(&arr[i], &arr[j]);
+}
+```
+Format penulisan ke file ngikutin yang diminta soal:
+```c
+fprintf(fp, "Laporan Klasifikasi Serangan:\n");
+for (i = 0; i < nt; i++)
+    fprintf(fp, "%d. %s muncul sebanyak %d kali.\n", i+1, types[i].name, types[i].count);
+fprintf(fp, "\nTop 5 IP Mencurigakan:\n");
+```
+Terakhir fork child buat zip nya, parent tunggu dulu baru cetak pesan:
+```c
+pid_t pid = fork();
+if (pid == 0) {
+    char *args[] = {"zip", "-r", BACKUP, LOGSDIR, REPORT, NULL};
+    execvp("zip", args);
+    exit(1);
+}
+wait(NULL);
+printf("[Info] Laporan dan arsip berhasil dibuat\n");
+```
+
+### Screenshot _(Screenshot)_
+
+<img width="883" height="490" alt="image" src="https://github.com/user-attachments/assets/d2dce8df-f26b-4ec3-8e88-7b318bbbbc6a" />
+
+
+
+isi file di akhir :
+
+
+<img width="675" height="335" alt="image" src="https://github.com/user-attachments/assets/6bd0dba9-32f9-4777-b61a-c8449af4f6f1" />
+
+
+### Kode Penuh _(Full Code)_
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <dirent.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+
+#define LOGSDIR "logs_dump"
+#define REPORT  "threat_report.txt"
+#define BACKUP  "backup_evidence.zip"
+#define TOPIP   5
+
+typedef struct {
+    char name[64];
+    int count;
+} Entry;
+
+void swap(Entry *a, Entry *b) {
+    Entry tmp = *a;
+    *a = *b;
+    *b = tmp;
+}
+
+void sort_desc(Entry *arr, int n) {
+    int i, j;
+    for (i = 0; i < n-1; i++)
+        for (j = i+1; j < n; j++)
+            if (arr[j].count > arr[i].count)
+                swap(&arr[i], &arr[j]);
+}
+
+int find_or_add(Entry *arr, int *n, char *key) {
+    int i;
+    for (i = 0; i < *n; i++)
+        if (strcmp(arr[i].name, key) == 0) return i;
+    strcpy(arr[*n].name, key);
+    arr[*n].count = 0;
+    return (*n)++;
+}
+
+void get_ip(char *fname, char *out) {
+    char *p = strchr(fname, '_');
+    int i;
+    if (!p) { out[0] = '\0'; return; }
+    p++;
+    for (i = 0; p[i] && p[i] != '_'; i++)
+        out[i] = p[i];
+    out[i] = '\0';
+}
+
+int main() {
+    Entry types[64];
+    Entry ips[2048];
+    int nt = 0, ni = 0;
+    int lim, i;
+    DIR *dlog;
+    struct dirent *cat;
+    FILE *fp;
+    pid_t pid;
+
+    dlog = opendir(LOGSDIR);
+    if (!dlog) { perror("gagal buka logs_dump"); return 1; }
+
+    while ((cat = readdir(dlog)) != NULL) {
+        char catpath[256];  
+        DIR *dcat;
+        struct dirent *f;
+
+        if (cat->d_type != DT_DIR) continue;
+        if (cat->d_name[0] == '.') continue;
+
+        snprintf(catpath, sizeof(catpath), "%s/%s", LOGSDIR, cat->d_name);
+        dcat = opendir(catpath);
+        if (!dcat) continue;
+
+        while ((f = readdir(dcat)) != NULL) {
+            char ip[64];
+            int ti, ii;
+
+            if (f->d_type != DT_REG) continue;
+
+            ti = find_or_add(types, &nt, cat->d_name);
+            types[ti].count++;
+
+            get_ip(f->d_name, ip);
+            if (ip[0]) {
+                ii = find_or_add(ips, &ni, ip);
+                ips[ii].count++;
+            }
+        }
+        closedir(dcat);
+    }
+    closedir(dlog);
+
+    sort_desc(types, nt);
+    sort_desc(ips, ni);
+
+    fp = fopen(REPORT, "w");
+    if (!fp) { perror("gagal buat report"); return 1; }
+
+    fprintf(fp, "Laporan Klasifikasi Serangan:\n");
+    for (i = 0; i < nt; i++)
+        fprintf(fp, "%d. %s muncul sebanyak %d kali.\n", i+1, types[i].name, types[i].count);
+
+    fprintf(fp, "\nTop 5 IP Mencurigakan:\n");
+    lim = (ni < TOPIP) ? ni : TOPIP;
+    for (i = 0; i < lim; i++)
+        fprintf(fp, "%d. %s muncul sebanyak %d kali.\n", i+1, ips[i].name, ips[i].count);
+
+    fclose(fp);
+    printf("laporan berhasil dibuat\n");
+
+    pid = fork();
+    if (pid < 0) { perror("fork gagal"); return 1; }
+
+    if (pid == 0) {
+        char *args[] = {"zip", "-r", BACKUP, LOGSDIR, REPORT, NULL};
+        execvp("zip", args);
+        perror("execvp gagal");
+        exit(1);
+    }
+
+    wait(NULL);
+    printf("[Info] Laporan dan arsip berhasil dibuat\n");
+    return 0;
+}
+```
+
+# Task 2 - DEANND'S Adventure
+
+## A. Langkah-langkah & Potongan Kode, Screenshot, Kode Penuh  
+_(Steps & Code Snippets, Screenshot, Full Code)_
+
+### Langkah-langkah & Potongan Kode _(Steps & Code Snippets)_
+
+1. Pada tahap ini dibuat dua program:
+
+	```game.c``` -> pusat kontrol
+
+	```sensor.c``` -> client
+
+3. Komunikasi menggunakan Message Queue dengan dua queue:
+
+	a. Membuat message queue
+	```c
+	int qin = msgget(Q1, 0666 | IPC_CREAT);
+	int qout = msgget(Q2, 0666 | IPC_CREAT);
+	```
+	
+	b. Sensor mengirim sinyal koneksi
+	```c
+	m.type = 1;
+	m.id = getpid();
+	msgsnd(qin, &m, sizeof(m)-sizeof(long), 0);
+	```
+	
+	c. Server menerima sensor
+	```c
+	while (sensor_count < 2) {
+    	msgrcv(qin, &m, sizeof(m)-sizeof(long), 1, 0);
+    	sensor_count++;
+    	printf("[SERVER] Sensor %d connected\n", sensor_count);
+	}
+	```
+	
+4. Server kirim ID ke sensor
+	```c
+	r.type = m.id;
+	r.id = sensor_count;
+	msgsnd(qout, &r, sizeof(r)-sizeof(long), 0);
+ 	```
+### Screenshot _(Screenshot)_
+<img width="498" height="128" alt="Screenshot 2026-04-15 at 17 50 27" src="https://github.com/user-attachments/assets/a5a19f75-e87d-4d19-8d31-f5ee0eea421b" />
+
+
+## B. Langkah-langkah & Potongan Kode, Screenshot, Kode Penuh
+
+### Langkah-langkah & Potongan Kode _(Steps & Code Snippets)_
+1. Input format:
+```bash
+<ID_SENSOR> <LOKASI> <STATUS> 
+```
+
+2. Input dari user
+	```c
+	scanf("%d", &input_id);
+	scanf(" %c %c", &loc, &stat);
+	```
+3. Validasi input
+	```c
+	if (input_id != id) {
+    	printf("ID salah!\n");
+	}
+	if (!valid(loc, stat)) {
+    	printf("Invalid!\n");
+	}
+ 	```
+ 
+3. Kirim ke server
+	```c
+	m.type = 2;
+	m.id = id;
+	m.loc = loc;
+	m.stat = stat;
+	msgsnd(qin, &m, sizeof(m)-sizeof(long), 0);
+ 
+4. Exit
+	```
+	if (strcmp(check, "exit") == 0) {
+    	m.exit = 1;
+    	msgsnd(qin, &m, sizeof(m)-sizeof(long), 0);
+	}
+ 	```
+### Screenshot _(Screenshot)_
+<img width="1180" height="775" alt="Screenshot 2026-04-16 at 05 09 13" src="https://github.com/user-attachments/assets/7724d13e-b499-48ae-9fc3-c7db066b0045" />
+
+
+## C. Langkah-langkah & Potongan Kode, Screenshot, Kode Penuh
+
+### Langkah-langkah & Potongan Kode _(Steps & Code Snippets)_
+
+1. Server menerima 4 data:
+	```c
+	while (cnt < 4) {
+    	msgrcv(qin, &m, sizeof(m)-sizeof(long), 2, 0);
+    	data[m.loc - 'A'] = m.stat;
+    	cnt++;
+	}
+ 
+2. Menampilkan data
+	```c
+	printf("\n[SERVER] Received data:\n");
+	printf("  A: %c\n", data[0]);
+	printf("  B: %c\n", data[1]);
+	printf("  C: %c\n", data[2]);
+	printf("  D: %c\n", data[3]);
+
+3. Summary
+	```c
+	int h = 0;
+        for (int i = 0; i < 4; i++)
+            if (data[i] == 'H') h++;
+ 
+ 	int low = 4 - h;
+
+	printf("\n[SERVER] Summary:\n");
+	printf("  High Traffic: %d\n", h);
+	printf("  Low Traffic : %d\n", low);
+ 
+### Screenshot _(Screenshot)_
+<img width="254" height="214" alt="Screenshot 2026-04-16 at 05 07 25" src="https://github.com/user-attachments/assets/69647c08-62be-4ec8-9841-7b0fa716181d" />
+
+## D. Langkah-langkah & Potongan Kode, Screenshot, Kode Penuh
+
+### Langkah-langkah & Potongan Kode _(Steps & Code Snippets)_
+1. Hitung H
+	```c
+	int h = 0;
+	for (int i = 0; i < 4; i++)
+    	if (data[i] == 'H') h++;
+
+2. Tentukan status
+	```c
+	char *status;
+
+	if (h >= 3) status = "MACET TOTAL";
+	else if (h == 2) status = "PADAT";
+	else status = "LANCAR";
+
+3. Tampilkan
+	```c
+	printf("\n[SERVER] City Status: %s\n", status);
+
+4. Kirim ke sensor
+	```c
+	r.type = 1;
+	r.shutdown = 0;
+	strcpy(r.text, status);
+
+	msgsnd(qout, &r, sizeof(r)-sizeof(long), 0);
+ 
+### Screenshot _(Screenshot)_
+<img width="381" height="127" alt="Screenshot 2026-04-16 at 05 10 56" src="https://github.com/user-attachments/assets/695b0b58-b01e-4f4c-ae5e-c77374b3df36" />
+
+## E. Langkah-langkah & Potongan Kode, Screenshot, Kode Penuh
+
+### Langkah-langkah & Potongan Kode _(Steps & Code Snippets)_
+
+1. Thread listener
+	```c
+	pthread_create(&t, NULL, listen_server, NULL);
+
+2. Thread menerima dari server
+	```c
+	msgrcv(qout, &r, sizeof(r)-sizeof(long), id, 0);
+
+3. Mutex
+	```c
+	pthread_mutex_lock(&mtx);
+	printf("[INFO] City: %s\n", r.text);
+	pthread_mutex_unlock(&mtx);
+
+4. Shutdown handling
+	```c
+	if (r.shutdown) {
+    	printf("[INFO] Shutdown...\n");
+    	running = 0;
+	}
+
+### Screenshot _(Screenshot)_
+<img width="233" height="43" alt="Screenshot 2026-04-16 at 05 19 06" src="https://github.com/user-attachments/assets/02c2cbc7-88ae-4256-bf76-412e08bf9fb4" />
+
+## F. Langkah-langkah & Potongan Kode, Screenshot, Kode Penuh
+
+### Langkah-langkah & Potongan Kode _(Steps & Code Snippets)_
+1. Server menerima exit
+	```c
+	if (m.exit) {
+
+2. Kirim shutdown ke sensor
+	```c
+	r.type = 1;
+	r.shutdown = 1;
+	msgsnd(qout, &r, sizeof(r)-sizeof(long), 0);
+
+3. Hapus message queue
+	```c
+	msgctl(qin, IPC_RMID, NULL);
+	msgctl(qout, IPC_RMID, NULL);
+
+4. Output
+	```c
+	printf("[SERVER] Cleaning up message queue...\n");
+	printf("[SERVER] Done.\n");
+
+### Screenshot _(Screenshot)_
+<img width="1440" height="900" alt="Screenshot 2026-04-16 at 05 21 07" src="https://github.com/user-attachments/assets/71adb500-094e-48a6-a45f-dc12028d6cb3" />
+
+### Kode Penuh _(Full Code)_
+
+  ```game.c```
+  ```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+
+#define Q1 111
+#define Q2 222
+
+typedef struct {
+    long type;
+    int id;
+    char loc;
+    char stat;
+    int exit;
+} Msg;
+
+typedef struct {
+    long type;
+    int id;
+    char text[50];
+    int shutdown;
+} Res;
+
+int main() {
+    int qin = msgget(Q1, 0666 | IPC_CREAT);
+    int qout = msgget(Q2, 0666 | IPC_CREAT);
+
+    Msg m;
+    Res r;
+
+    int sensor_count = 0;
+
+    printf("[SERVER] Waiting for sensors...\n");
+
+    while (sensor_count < 2) {
+        msgrcv(qin, &m, sizeof(m)-sizeof(long), 1, 0);
+
+        sensor_count++;
+        printf("[SERVER] Sensor %d connected\n", sensor_count);
+
+        r.type = m.id;
+        r.id = sensor_count;
+        r.shutdown = 0;
+
+        msgsnd(qout, &r, sizeof(r)-sizeof(long), 0);
+    }
+
+    printf("[SERVER] System ready!\n");
+
+    while (1) {
+        char data[4];
+        int cnt = 0;
+
+        while (cnt < 4) {
+            msgrcv(qin, &m, sizeof(m)-sizeof(long), 2, 0);
+
+            if (m.exit) {
+                printf("[SERVER] Exit signal received\n");
+		printf("[SERVER] Shutting down system...\n");
+
+		r.type = 1;
+		r.shutdown = 1;
+		msgsnd(qout, &r, sizeof(r)-sizeof(long), 0);
+
+		printf("[SERVER] Cleaning up message queue...\n");
+		msgctl(qin, IPC_RMID, NULL);
+		msgctl(qout, IPC_RMID, NULL);
+
+		printf("[SERVER] Done.\n");
+		return 0;
+            }
+
+            data[m.loc - 'A'] = m.stat;
+            cnt++;
+        }
+
+        int h = 0;
+        for (int i = 0; i < 4; i++)
+            if (data[i] == 'H') h++;
+
+        printf("\n[SERVER] Data:\n");
+        printf("A:%c B:%c C:%c D:%c\n",
+            data[0], data[1], data[2], data[3]);
+
+      	printf("\n[SERVER] Received data:\n");
+	printf("  A: %c\n", data[0]);
+	printf("  B: %c\n", data[1]);
+	printf("  C: %c\n", data[2]);
+	printf("  D: %c\n", data[3]);
+
+	for (int i = 0; i < 4; i++)
+    		if (data[i] == 'H') h++;
+
+	int low = 4 - h;
+
+	printf("\n[SERVER] Summary:\n");
+	printf("  High Traffic: %d\n", h);
+	printf("  Low Traffic : %d\n", low);
+
+	char *status;
+	if (h >= 3) status = "MACET TOTAL";
+	else if (h == 2) status = "PADAT";
+	else status = "LANCAR";
+
+	printf("\n[SERVER] City Status: %s\n", status);
+
+        r.type = 1;
+        r.shutdown = 0;
+        strcpy(r.text, status);
+
+        msgsnd(qout, &r, sizeof(r)-sizeof(long), 0);
+    }
+}
+  ```
+
+  ```sensor.c```
+  ```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <pthread.h>
+#include <sys/ipc.h>
+#include <sys/msg.h>
+#include <unistd.h>
+
+#define Q1 111
+#define Q2 222
+
+typedef struct {
+    long type;
+    int id;
+    char loc;
+    char stat;
+    int exit;
+} Msg;
+
+typedef struct {
+    long type;
+    int id;
+    char text[50];
+    int shutdown;
+} Res;
+
+int qin, qout;
+int running = 1;
+int id;
+pthread_mutex_t mtx;
+
+void* listen_server(void* arg) {
+    Res r;
+
+    while (running) {
+        msgrcv(qout, &r, sizeof(r)-sizeof(long), id, 0);
+
+        pthread_mutex_lock(&mtx);
+
+        if (r.shutdown) {
+            printf("\n[INFO] Another sensor has exited\n");
+	    printf("[INFO] Cancelling current input...\n");
+	    printf("[INFO] System shutting down...\n");
+            running = 0;
+        } else if (strlen(r.text) > 0) {
+            printf("\n[INFO] City: %s\n", r.text);
+        }
+
+        pthread_mutex_unlock(&mtx);
+    }
+    return NULL;
+}
+
+int valid(char loc, char stat) {
+    if (id == 1 && !(loc=='A'||loc=='B')) return 0;
+    if (id == 2 && !(loc=='C'||loc=='D')) return 0;
+    if (!(stat=='H'||stat=='L')) return 0;
+    return 1;
+}
+
+int main() {
+    qin = msgget(Q1, 0666 | IPC_CREAT);
+    qout = msgget(Q2, 0666 | IPC_CREAT);
+
+    pthread_mutex_init(&mtx, NULL);
+
+    Msg m;
+    Res r;
+
+    m.type = 1;
+    m.id = getpid();
+    msgsnd(qin, &m, sizeof(m)-sizeof(long), 0);
+
+    msgrcv(qout, &r, sizeof(r)-sizeof(long), m.id, 0);
+    id = r.id;
+
+    printf("[SENSOR %d] Connected\n", id);
+
+    pthread_t t;
+    pthread_create(&t, NULL, listen_server, NULL);
+
+    while (running) {
+        printf("\nMasukkan data:\n");
+
+        for (int i = 0; i < 2 && running; i++) {
+            int input_id;
+            char loc, stat;
+
+            scanf("%d", &input_id);
+
+            if (input_id == 0) continue;
+
+            if (input_id != id) {
+                printf("ID salah!\n");
+                i--;
+                continue;
+            }
+
+            scanf(" %c %c", &loc, &stat);
+
+            if (!valid(loc, stat)) {
+                printf("Invalid!\n");
+                i--;
+                continue;
+            }
+
+            m.type = 2;
+            m.id = id;
+            m.loc = loc;
+            m.stat = stat;
+            m.exit = 0;
+
+            msgsnd(qin, &m, sizeof(m)-sizeof(long), 0);
+        }
+
+        char check[10];
+        scanf("%s", check);
+
+        if (strcmp(check, "exit") == 0) {
+            m.type = 2;
+            m.exit = 1;
+            msgsnd(qin, &m, sizeof(m)-sizeof(long), 0);
+
+            printf("[SENSOR] Sending exit signal...\n");
+	    printf("[SENSOR] Shutting down...\n");
+            running = 0;
+        }
+    }
+
+    pthread_join(t, NULL);
+    pthread_mutex_destroy(&mtx);
+}
+  ```
+
+# Task 3 - Simulasi Pertempuran Laut
+_(Naval Battle Simulation)_
+
+## A. Langkah-langkah & Potongan Kode, Screenshot, Kode Penuh
+
+### Langkah-langkah & Potongan Kode _(Steps & Code Snippets)_
+Server membuat 1 queue publik dan 4 queue privats:
+
+  ```INA```,
+  ```OUTA``` -> Player 1
+  ```INB``` ,
+  ```OUTB ``` -> Player 2
+
+Player kirim ```"JOIN"``` ke HUB
+
+Server Menerima:
+
+- Player pertama -> dikasih P1
+- Player kedua -> dikasih P2
+
+Setelah itu:
+
+- Player buka queue sesuai role
+- Server kirim ```"START"```
+
+### Screenshot _(Screenshot)_
+Masukkan screenshot hasil eksekusi program atau proses yang relevan.  
+_Insert screenshots of program execution results or other relevant processes._
+
+
+<img width="612" height="152" alt="image" src="https://github.com/user-attachments/assets/6c728c80-e9c7-4a6f-90a5-8706a9c7f2d1" />
+
+
+### Kode Penuh _(Full Code)_
+Masukkan kode lengkap yang digunakan untuk menyelesaikan bagian ini.  
+_Insert the full source code used to solve this section._
+
+```game.c```
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <mqueue.h>
+#include <string.h>
+
+#define HUB "/hub_gate"
+#define OUTA "/lane_a_out"
+#define OUTB "/lane_b_out"
+
+typedef struct{
+    char text[64];
+} msg;
+
+int main(){
+
+    struct mq_attr cfg;
+    cfg.mq_flags = 0;
+    cfg.mq_maxmsg = 10;
+    cfg.mq_msgsize = sizeof(msg);
+    cfg.mq_curmsgs = 0;
+
+    mq_unlink(HUB);
+    mq_unlink(OUTA);
+    mq_unlink(OUTB);
+
+    mqd_t hub = mq_open(HUB, O_CREAT | O_RDONLY, 0666, &cfg);
+    mqd_t outA = mq_open(OUTA, O_CREAT | O_WRONLY, 0666, &cfg);
+    mqd_t outB = mq_open(OUTB, O_CREAT | O_WRONLY, 0666, &cfg);
+
+    msg box;
+
+    printf("[SERVER] Menunggu Pemain 1...\n");
+    mq_receive(hub,(char*)&box,sizeof(box),NULL);
+    printf("[SERVER] Pemain 1 terhubung.\n");
+
+    strcpy(box.text,"P1");
+    mq_send(outA,(char*)&box,sizeof(box),0);
+
+    printf("[SERVER] Menunggu Pemain 2...\n");
+    mq_receive(hub,(char*)&box,sizeof(box),NULL);
+    printf("[SERVER] Pemain 2 terhubung.\n");
+
+    strcpy(box.text,"P2");
+    mq_send(outB,(char*)&box,sizeof(box),0);
+
+    printf("[SERVER] Kedua pemain terhubung. Permainan dimulai!\n");
+
+    strcpy(box.text,"START");
+    mq_send(outA,(char*)&box,sizeof(box),0);
+    mq_send(outB,(char*)&box,sizeof(box),0);
+
+    mq_close(hub);
+    mq_close(outA);
+    mq_close(outB);
+
+    mq_unlink(HUB);
+    mq_unlink(OUTA);
+    mq_unlink(OUTB);
+
+    return 0;
+}
+```
+
+```player.c```
+
+```c
+#include <stdio.h>
+#include <stdlib.h>
+#include <mqueue.h>
+#include <string.h>
+#include <unistd.h>
+
+#define HUB "/hub_gate"
+#define OUTA "/lane_a_out"
+#define OUTB "/lane_b_out"
+
+typedef struct{
+    char text[64];
+} msg;
+
+int main(){
+
+    mqd_t hub = mq_open(HUB, O_WRONLY);
+
+    msg box;
+    strcpy(box.text,"JOIN");
+    mq_send(hub,(char*)&box,sizeof(box),0);
+
+    mqd_t inbox;
+
+    inbox = mq_open(OUTA, O_RDONLY | O_NONBLOCK);
+    sleep(1);
+
+    if(mq_receive(inbox,(char*)&box,sizeof(box),NULL) != -1){
+        printf("[PEMAIN 1] Berhasil terhubung!\n");
+    }else{
+        inbox = mq_open(OUTB, O_RDONLY);
+        mq_receive(inbox,(char*)&box,sizeof(box),NULL);
+        printf("[PEMAIN 2] Berhasil terhubung!\n");
+    }
+
+    mq_receive(inbox,(char*)&box,sizeof(box),NULL);
+
+    printf("[SERVER] Permainan dimulai!\n");
+
+    mq_close(hub);
+    mq_close(inbox);
+
+    return 0;
+}
+```
+
+## B. Langkah-langkah & Potongan Kode, Screenshot, Kode Penuh
+
+### Langkah-langkah & Potongan Kode _(Steps & Code Snippets)_
+Jelaskan langkah-langkah yang dilakukan dan berikan potongan kode dari langkah-langkah yang kalian jelaskan jika ada.  
+_Explain the steps performed and include relevant code snippets from the steps you describe if applicable._
+
+1.Input Koordinat
+```0A,2D,3A,dll```
+
+Format:
+- angka = baris(0-3)
+- huruf = kolom(A-D)
+
+2.Validasi input
+Program mengecek:
+a.panjang input harus 2 karakter
+b.baris harus 0-3
+c.kolom harus A-D
+d.tidak boleh menimpa kapal sebelumnya
+
+Jika salah:
+```
+Petak sudah ditempati!
+atau
+Koordinat tidak valid!
+```
+
+3.Simpan ke dalam board
+jika benar:
+```c
+own[r][c] = 'S';
+```
+```S``` = Kapal
+
+4.Kirim ke server
+setiap posisi dikirim:
+```c
+mq_send(outbox, koordinat)
+```
+
+5.Server menerima
+Server:
+```c
+mq_receive(inA / inB)
+```
+Lalu disimpan:
+```c
+seaA[r][c] = 'S';
+seaB[r][c] = 'S';
+```
+
+Setelah player selesai:
+```
+[INFO] Menunggu lawan menyelesaikan penempatan...
+```
+
+### Screenshot _(Screenshot)_
+Masukkan screenshot hasil eksekusi program atau proses yang relevan.  
+_Insert screenshots of program execution results or other relevant processes._
+
+<img width="755" height="358" alt="image" src="https://github.com/user-attachments/assets/22c032b6-f666-4e16-998a-cd7e75fec9ed" />
+
+
+### Kode Penuh _(Full Code)_
+Masukkan kode lengkap yang digunakan untuk menyelesaikan bagian ini.  
+_Insert the full source code used to solve this section._
+```c
+char board[4][4];
+
+void init_board(){
+    for(int i=0;i<4;i++)
+        for(int j=0;j<4;j++)
+            board[i][j]=' ';
+}
+
+int valid_input(char *s, int *r, int *c){
+    if(strlen(s)!=2) return 0;
+
+    *r = s[0]-'0';
+    *c = s[1]-'A';
+
+    if(*r < 0 || *r > 3) return 0;
+    if(*c < 0 || *c > 3) return 0;
+
+    return 1;
+}
+
+void place_ships(){
+
+    for(int k=0;k<2;k++){
+
+        char input[10];
+        int r,c;
+
+        while(1){
+
+            printf("Tempatkan Kapal %d:\n> ", k+1);
+            scanf("%s", input);
+
+            if(!valid_input(input,&r,&c)){
+                printf("Koordinat tidak valid!\n");
+                continue;
+            }
+
+            if(board[r][c]=='S'){
+                printf("Petak sudah ditempati!\n");
+                continue;
+            }
+
+            board[r][c] = 'S';
+
+            printf("Kapal %d ditempatkan.\n", k+1);
+
+            break;
+        }
+    }
+}
+
+void print_board(){
+
+    printf("\n  A B C D\n");
+
+    for(int i=0;i<4;i++){
+        printf("%d|",i);
+        for(int j=0;j<4;j++){
+            printf("%c|",board[i][j]);
+        }
+        printf("\n");
+    }
+}
+
+int main(){
+
+    init_board();
+
+    printf("Anda akan menempatkan 2 kapal.\n");
+
+    place_ships();
+
+    print_board();
+
+    printf("[INFO] Menunggu lawan menyelesaikan penempatan...\n");
+
+    return 0;
+}
+```
+
+Memasukan Target 
+## C. Langkah-langkah & Potongan Kode, Screenshot, Kode Penuh
+
+### Langkah-langkah & Potongan Kode _(Steps & Code Snippets)_
+Jelaskan langkah-langkah yang dilakukan dan berikan potongan kode dari langkah-langkah yang kalian jelaskan jika ada.  
+_Explain the steps performed and include relevant code snippets from the steps you describe if applicable._
+
+1.Menentukan Pemain pertama
+```c
+
+int first_player = (rand() % 2) + 1;
+int current_turn = first_player;
+
+
+pkt msg;
+if (first_player == 1) {
+    strcpy(msg.text, "YOUR_TURN");
+    mq_send(player1_outbox, (char*)&msg, sizeof(msg), 0);
+    
+    strcpy(msg.text, "WAIT");
+    mq_send(player2_outbox, (char*)&msg, sizeof(msg), 0);
+} else {
+   
+}
+```
+
+Tampilan Giliran
+```c
+
+void* listen_thread(void* arg) {
+    pkt msg;
+    while(1) {
+        mq_receive(inbox, (char*)&msg, sizeof(msg), NULL);
+        
+        if (strcmp(msg.text, "YOUR_TURN") == 0) {
+            myturn = 1;
+            printf("\n[GILIRAN ANDA]\n");
+            draw(); 
+            printf("Target: ");
+        }
+        
+    }
+}
+```
+
+Memasukan target tembakan
+
+```c
+
+while(1) {
+    if (myturn) {
+        char target[10];
+        scanf("%s", target);  
+        
+      
+        pkt msg;
+        strcpy(msg.text, target);
+        mq_send(outbox, (char*)&msg, sizeof(msg), 0);
+        
+        myturn = 0;  
+    }
+}
+```
+
+contoh input : ```0A,2D,3B,4D,dll```
+
+Server memproses tembakan
+```c
+void process_shott(int shooter_id, char* target, int row, int col) {
+    int oponent_id = (shooter_id == 1) ? 2 : 1;
+    
+    if (already_shot[opponent_id][row][col]) {
+        strcpy(msg.text, "MISS_ALREADY");
+        mq_send(shooter_outbox, (char*)&msg, sizeof(msg), 0);
+        return;
+    }
+    
+    already_shot[opponent_id][row][col] = 1;
+    
+    if (opponent_board[opponent_id][row][col] == 'S') {
+        opponent_board[opponent_id][row][col] = 'X';
+        opponent_ships_left[opponent_id]--;
+        
+        if (opponent_ships_left[opponent_id] == 0) {
+            strcpyy(msg.text, "WIN");
+            mq_send(shooter_outbox, (char*)&msg, sizeof(msg), 0);
+            
+            strcpyy(msg.text, "LOSE");
+            mq_send(opponent_outbox, (char*)&msg, sizeof(msg), 0);
+        } else {
+            sprintf(msg.text, "HIT %d", opponent_ships_left[opponent_id]);
+            mq_send(shooter_outbox, (char*)&msg, sizeof(msg), 0);
+        }
+        
+        printf("[GILIRAN] Pemain %d menembak %s: KENA\n", shooter_id, target);
+        if (opponent_ships_left[opponent_id] == 0) {
+            printf("[TENGGELAM] Pemain %d menenggelamkan Kapal Pemain %d!\n", 
+                   shooter_id, opponent_id);
+        }
+    } else {
+        strcpyy(msg.text, "MISS");
+        mq_send(shooter_outbox, (char*)&msg, sizeof(msg), 0);
+        
+        printf("[GILIRAN] Pemain %d menembak %s: MELESET\n", shooter_id, target);
+    }
+}
+
+```
+
+Hasil Tembakan terhadap penembak
+```c
+
+if (strncmp(msg.text, "HIT", 3) == 0) {
+    int ships_left;
+    sscanf(msg.text, "HIT %d", &ships_left);
+    
+    printf("\n[HASIL TEMBAKANN]\n");
+    printf("%s KENA KAPAL, SISA %d KAPAL LAGI\n", target, ships_left);
+    printf("=======================================\n");
+    
+   
+    ptread_mutex_lockk(&mtx);
+    
+    enemy[row][col] = 'X';  
+    pthread_mutex_unlock(&mtx);
+}
+else if (strcmp(msg.text, "MISS") == 0) {
+    printf("\n[HASIL TEMBAKAN]\n");
+    printf("%s MELESET\n", target);
+    printf("========================================\n");
+    
+  
+    pthread_mute_lock(&mtx);
+    enemy[row][col] = ' ';
+    pthread_mutex_unlock(&mtx);
+}
+else if (strcmp(msg.text, "WIN") == 0) {
+    printf("\n[HASIL TEMBAKAN]\n");
+    printf("SELAMAT! Anda MENANG!\n");
+    printf("=========================================\n");
+    exit(0);
+}
+else if (strcmp(msg.text, "MISS_ALREADY") == 0) {
+    printf("\n[HASIL TEMBAKAN]\n");
+    printf("%s SUDAH PERNAH DITEMBAK, MELESET\n", target);
+    printf("=========================================\n");
+}
+```
+
+Notifikasi Ke lawan
+```c
+
+void notify_opponent(int opponent_id, int shooter_id, char* target, int hit, int ships_left) {
+    pkt msg;
+    
+    if (hitt) {
+        sprintf(msg.text, "OPPONENT_HITT %s %d", target, ships_left);
+    } else {
+        sprintf(msg.text, "OPPONENT_MISSS %s", target);
+    }
+    
+    mq_send(opponent_outbox, (char*)&msg, sizeof(msg), 0);
+}
+```
+Megganti Giliran
+```c
+current_turnn = (current_turnn == 1) ? 2 : 1;
+
+pkt msg;
+strcpy(msg.text, "YOUR_TURNN");
+mq_send(get_outbox(current_turn), (char*)&msg, sizeof(msg), 0);
+
+strcpy(msg.text, "WAITT");
+mq_send(get_outbox(other_player), (char*)&msg, sizeof(msg), 0);
+```
+### Screenshot _(Screenshot)_
+Masukkan screenshot hasil eksekusi program atau proses yang relevan.  
+_Insert screenshots of program execution results or other relevant processes._
+```
+Jika Kena
+```
+<img width="406" height="258" alt="image" src="https://github.com/user-attachments/assets/335f3aab-29eb-42be-8e6f-c5cad17c5e99" />
+
+```
+Jika Meleset
+```
+<img width="727" height="483" alt="image" src="https://github.com/user-attachments/assets/9a4cd22f-5a7b-48c8-bca9-8d35554251c2" />
+
+```
+Tampilan Server
+```
+<img width="636" height="135" alt="image" src="https://github.com/user-attachments/assets/74fac315-cc4e-4f4b-9681-7f06b83deb4e" />
+
+
+
+### Kode Penuh _(Full Code)_
+Masukkan kode lengkap yang digunakan untuk menyelesaikan bagian ini.  
+```c
+#include "shared.h"
+
+mqd_t in_q, out_q;
+pthread_mutex_t board_mutex;
+int is_my_turn = 0;
+int is_game_active = 1;
+
+char my_board[BOARD_SIZE][BOARD_SIZE];
+char opp_board[BOARD_SIZE][BOARD_SIZE];
+
+void init_boards() {
+    memset(my_board, ' ', sizeof(my_board));
+    memset(opp_board, '?', sizeof(opp_board));
+    
+    my_board[0][0] = 'S';
+    my_board[1][1] = 'S';
+    my_board[2][2] = 'S';
+}
+
+void draw() {
+    pthread_mutex_lock(&board_mutex);
+    
+    printf("\n    Papan Lawan\n  A B C D\n");
+    for (int i = 0; i < BOARD_SIZE; i++) {
+        printf("%d|", i);
+        for (int j = 0; j < BOARD_SIZE; j++) {
+            if (opp_board[i][j] == '?') {
+                printf("?|");
+            } else if (opp_board[i][j] == 'X') {
+                printf("X|");
+            } else {
+                printf(" |");
+            }
+        }
+        printf("\n");
+    }
+    
+    printf("\n    Papan Anda\n  A B C D\n");
+    for (int i = 0; i < BOARD_SIZE; i++) {
+        printf("%d|", i);
+        for (int j = 0; j < BOARD_SIZE; j++) {
+            if (my_board[i][j] == 'S') {
+                printf("S|");
+            } else if (my_board[i][j] == 'X') {
+                printf("X|");
+            } else {
+                printf(" |");
+            }
+        }
+        printf("\n");
+    }
+    
+    pthread_mutex_unlock(&board_mutex);
+}
+
+void update_opp_board(int row, int col, char result) {
+    pthread_mutex_lock(&board_mutex);
+    if (result == 'X') {
+        opp_board[row][col] = 'X';
+    } else if (result == 'M') {
+        opp_board[row][col] = ' ';
+    }
+    pthread_mutex_unlock(&board_mutex);
+}
+
+void update_my_board(int row, int col) {
+    pthread_mutex_lock(&board_mutex);
+    my_board[row][col] = 'X';
+    pthread_mutex_unlock(&board_mutex);
+}
+
+int parse_coord(const char* coord, int* row, int* col) {
+    if (strlen(coord) != 2) return 0;
+    *row = coord[0] - '0';
+    *col = coord[1] - 'A';
+    if (*row < 0 || *row >= BOARD_SIZE) return 0;
+    if (*col < 0 || *col >= BOARD_SIZE) return 0;
+    return 1;
+}
+
+void* receive_thread(void* arg) {
+    pkt packet;
+    char coord[10];
+    int r, c;
+    int remaining;
+    
+    while (is_game_active) {
+        if (mq_receive(in_q, (char*)&packet, sizeof(packet), NULL) == -1) {
+            continue;
+        }
+        
+        if (strcmp(packet.text, "YOUR_TURN") == 0) {
+            is_my_turn = 1;
+            printf("\n[GILIRAN ANDA]\n");
+            draw();
+            printf("Target: ");
+            fflush(stdout);
+        }
+        else if (strcmp(packet.text, "WAIT") == 0) {
+            is_my_turn = 0;
+        }
+        else if (strncmp(packet.text, "HIT", 3) == 0) {
+            sscanf(packet.text, "HIT %d", &remaining);
+            printf("\n[HASIL TEMBAKAN]\n");
+            printf("Target %s: KENA KAPAL, SISA %d KAPAL LAGI\n", coord, remaining);
+            printf("========================================\n");
+            update_opp_board(r, c, 'X');
+        }
+        else if (strcmp(packet.text, "MISS") == 0) {
+            printf("\n[HASIL TEMBAKAN]\n");
+            printf("Target %s: MELESET\n", coord);
+            printf("========================================\n");
+            update_opp_board(r, c, 'M');
+        }
+        else if (strcmp(packet.text, "MISS_ALREADY") == 0) {
+            printf("\n[HASIL TEMBAKAN]\n");
+            printf("Target %s: SUDAH PERNAH DITEMBAK, MELESET\n", coord);
+            printf("========================================\n");
+        }
+        else if (strcmp(packet.text, "WIN") == 0) {
+            printf("\n[HASIL TEMBAKAN]\n");
+            printf("SELAMAT! Anda MENANG!\n");
+            printf("========================================\n");
+            is_game_active = 0;
+            break;
+        }
+        else if (strcmp(packet.text, "LOSE") == 0) {
+            printf("\n[INFO] Anda KALAH!\n");
+            is_game_active = 0;
+            break;
+        }
+        else if (strncmp(packet.text, "OPPONENT_HIT", 12) == 0) {
+            sscanf(packet.text, "OPPONENT_HIT %s %d", coord, &remaining);
+            parse_coord(coord, &r, &c);
+            update_my_board(r, c);
+            printf("\n[INFO] Lawan menembak %s: KENA KAPAL, SISA %d KAPAL LAGI\n", 
+                   coord, remaining);
+        }
+        else if (strncmp(packet.text, "OPPONENT_MISS", 13) == 0) {
+            sscanf(packet.text, "OPPONENT_MISS %s", coord);
+            printf("\n[INFO] Lawan menembak %s: MELESET\n", coord);
+        }
+        else if (strcmp(packet.text, "INVALID") == 0) {
+            printf("\n[ERROR] Koordinat tidak valid! Gunakan format: 0A, 1B, 2C, 3D\n");
+            is_my_turn = 1;
+            printf("Target: ");
+            fflush(stdout);
+        }
+    }
+    
+    return NULL;
+}
+
+int main() {
+    struct mq_attr attr;
+    attr.mq_flags = 0;
+    attr.mq_maxmsg = 10;
+    attr.mq_msgsize = sizeof(pkt);
+    attr.mq_curmsgs = 0;
+    
+    in_q = mq_open(QUEUE_NAME1, O_RDWR);
+    out_q = mq_open(QUEUE_NAME2, O_RDWR);
+    
+    if (in_q == -1 || out_q == -1) {
+        printf("[ERROR] Gagal konek ke server!\n");
+        return 1;
+    }
+    
+    pthread_mutex_init(&board_mutex, NULL);
+    init_boards();
+    
+    printf("[SENSOR] Terhubung ke server\n");
+    printf("[SENSOR] Menunggu giliran...\n");
+    
+    pthread_t receiver;
+    pthread_create(&receiver, NULL, receive_thread, NULL);
+    
+    char input[10];
+    pkt packet;
+    int r, c;
+    
+    while (is_game_active) {
+        if (is_my_turn) {
+            fgets(input, sizeof(input), stdin);
+            input[strcspn(input, "\n")] = 0;
+            
+            if (strlen(input) == 0) continue;
+            
+            if (!parse_coord(input, &r, &c)) {
+                printf("Format salah! Gunakan: 0A, 1B, 2C, 3D\n");
+                printf("Target: ");
+                fflush(stdout);
+                continue;
+            }
+            
+            strcpy(packet.text, input);
+            mq_send(out_q, (char*)&packet, sizeof(packet), 0);
+            is_my_turn = 0;
+        }
+        usleep(10000);
+    }
+    
+    pthread_join(receiver, NULL);
+    
+    mq_close(in_q);
+    mq_close(out_q);
+    pthread_mutex_destroy(&board_mutex);
+    
+    return 0;
+}
+```
+
+
+## D. Langkah-langkah & Potongan Kode, Screenshot, Kode Penuh
+
+### Langkah-langkah & Potongan Kode _(Steps & Code Snippets)_
+Jelaskan langkah-langkah yang dilakukan dan berikan potongan kode dari langkah-langkah yang kalian jelaskan jika ada.  
+_Explain the steps performed and include relevant code snippets from the steps you describe if applicable._
+
+1.Thread
+ - Thread utama -> Minta input pemain
+ - Thread pendengar -> Terima pesan dari server
+
+```c
+pthread_create(&receiver, NULL, receive_thread, NULL);
+
+while (is_gamee_active) {
+    if (is_my_turn) {
+        fgets(input, ...);     
+        mq_send(...);          
+    }
+}
+
+
+while (is_game_active) {
+    mq_receive(...);          
+}
+```
+
+2. Akhir permain
+```c
+if (strcmp(packet.text, "WIN") == 0) {
+    printf("ANDA MENANG!\n");
+    is_game_active = 0;  
+    break;
+}
+
+
+if (strcmp(packet.text, "LOSE") == 0) {
+    printf("ANDA KALAH!\n");
+    is_game_active = 0;  
+    break;
+}
+```
+
+### Screenshot _(Screenshot)_
+Masukkan screenshot hasil eksekusi program atau proses yang relevan.  
+_Insert screenshots of program execution results or other relevant processes._
+
+```
+Jika Menang
+```
+<img width="512" height="191" alt="image" src="https://github.com/user-attachments/assets/82eee733-df9e-43b4-b793-be2640a27eec" />
+
+```
+Jika kalah
+```
+<img width="583" height="157" alt="image" src="https://github.com/user-attachments/assets/5c919d01-c661-4a4a-8d0a-add919e6674b" />
+
+### Kode Penuh _(Full Code)_
+Masukkan kode lengkap yang digunakan untuk menyelesaikan bagian ini.  
+_Insert the full source code used to solve this section._
+
+```c
+        else if(strcmp(box.text,"WIN")==0){
+            printf("\n========================================\n");
+            printf("[HASIL] Semua kapal musuh telah tenggelam!\n");
+            printf("[HASIL] ANDA MENANG!\n");
+            printf("========================================\n");
+            exit(0);
+        }
+        else if(strcmp(box.text,"LOSE")==0){
+            printf("\n========================================\n");
+            printf("[HASIL] Semua kapal Anda telah tenggelam.\n");
+            printf("[HASIL] ANDA KALAH.\n");
+            printf("========================================\n");
+            exit(0);
+```
+
+### Revisi Praktikum Modul 2 _(Module 2 Lab Work Revision)_
+
+Tuliskan hanya bagian yang direvisi pada template berikut.  
+_Only write the revised sections using the template below._
+
+Gunakan format yang sama seperti pada laporan utama.  
+_Use the same format as in the main report._
+
+---
+
+# Task [] - []
+
+## []. Langkah-langkah & Potongan Kode, Screenshot, Kode Penuh  
+_(Steps & Code Snippets, Screenshot, Full Code)_
+
+### Langkah-langkah & Potongan Kode _(Steps & Code Snippets)_
+Jelaskan langkah-langkah yang dilakukan dan berikan potongan kode dari langkah-langkah yang kalian jelaskan jika ada.  
+_Explain the steps performed and include relevant code snippets from the steps you describe if applicable._
+
+- 
+
+### Screenshot _(Screenshot)_
+Masukkan screenshot hasil eksekusi program atau proses yang relevan.  
+_Insert screenshots of program execution results or other relevant processes._
+
+- 
+
+### Kode Penuh _(Full Code)_
+Masukkan kode lengkap yang digunakan untuk menyelesaikan bagian ini.  
+_Insert the full source code used to solve this section._
+
+- 
+
+...
 
