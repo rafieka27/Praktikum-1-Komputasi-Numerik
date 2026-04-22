@@ -19,7 +19,7 @@ def hitung_secant():
         text_output.insert(tk.END, "Iter |    x0    |    x1    |    x2    |   f(x2)  |   Error  \n")
         text_output.insert(tk.END, "-"*65 + "\n")
         
-        x2 = x1 # Inisialisasi awal
+        x2 = x1
         
         for i in range(max_iter):
             f_x0 = f(x0)
