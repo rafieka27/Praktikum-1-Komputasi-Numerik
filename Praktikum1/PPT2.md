@@ -159,7 +159,8 @@ if root is not None:
 
 ## C. Screenshot 
 
-<img width="1068" height="831" alt="Screenshot 2026-04-22 at 01 12 42" src="https://github.com/user-attachments/assets/8d5fd54f-22eb-438f-8d3d-a0887f41ba22" />
+<img width="1060" height="828" alt="Screenshot 2026-05-01 at 14 39 31" src="https://github.com/user-attachments/assets/1f5a81c2-74ef-4f41-ac6e-774a87fe0b55" />
+
 <img width="1440" height="900" alt="Screenshot 2026-04-22 at 01 13 22" src="https://github.com/user-attachments/assets/974d3a29-3491-4ad8-8572-5a57897e61f7" />
 
 
