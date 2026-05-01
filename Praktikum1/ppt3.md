@@ -215,3 +215,7 @@ text_output = tk.Text(root, height=12, width=65, font=("Courier", 9))
 root.mainloop()
 ```
 Baris terakhir ini sangat penting. Ini memberitahu Python untuk menjalankan aplikasi dan terus mendengarkan interaksi pengguna (seperti klik tombol) sampai jendela ditutup.
+
+
+## Screenshoot
+-<img width="659" height="637" alt="image" src="https://github.com/user-attachments/assets/5a240fe9-5323-4f78-9717-e81a85786ef0" />
