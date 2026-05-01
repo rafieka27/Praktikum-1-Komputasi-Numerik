@@ -29,6 +29,7 @@ def regula_falsi(f, a, b, tol=1e-4, max_iter=100):
             a = c
     print("\nMaks iterasi tercapai.")
     return c
+
 expr = input("Masukkan f(x): ")
 f = make_function(expr)
 
