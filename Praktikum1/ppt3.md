@@ -219,3 +219,5 @@ Baris terakhir ini sangat penting. Ini memberitahu Python untuk menjalankan apli
 
 ## Screenshoot
 -<img width="659" height="637" alt="image" src="https://github.com/user-attachments/assets/5a240fe9-5323-4f78-9717-e81a85786ef0" />
+
+`Inti dari soal ini adalah kita ditugaskan untuk membangun sebuah program yang dapat menghitung akar persamaan matematika secara otomatis menggunakan algoritma Metode Secant. Syarat utamanya, program tersebut wajib dilengkapi dengan Antarmuka Pengguna (User Interface/UI) yang interaktif—seperti adanya kolom teks dan tombol. Tujuannya adalah agar pengguna awam dapat dengan mudah mengetikkan rumus fungsinya langsung di dalam aplikasi, tanpa perlu memiliki kemampuan coding atau mengubah-ubah baris source code secara manual.`
