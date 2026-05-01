@@ -110,7 +110,7 @@ root.mainloop()
 Fungsi ini adalah otak dari program, dieksekusi saat tombol "Hitung Akar" ditekan.
 
 A. Persiapan dan Pengambilan Input
-    ```python
+```python
     text_output.delete(1.0, tk.END)
     try:
     func_str = entry_func.get()
@@ -118,17 +118,17 @@ A. Persiapan dan Pengambilan Input
     x1 = float(entry_x1.get())
     tol = float(entry_tol.get())
     max_iter = int(entry_iter.get())
-    ```
+```
 -Pertama, area teks output dibersihkan dari hasil sebelumnya.
 -Blok try dimulai untuk menangani potensi error jika user memasukkan data yang tidak valid (misal: memasukkan huruf di kolom angka).
 -Program mengambil nilai dari kolom-kolom input (fungsi, tebakan awal x0 dan x1, toleransi error, dan batas iterasi) dan mengubahnya ke tipe data yang        sesuai (float untuk desimal, int untuk bilangan bulat).
 
 B. Parsing Fungsi Matematika
-    ```python
+```python
     x = sp.symbols('x')
     expr = sp.sympify(func_str)
     f = sp.lambdify(x, expr, 'math')
-    ```
+```
 -Mendefinisikan x sebagai simbol matematika.
 -sp.sympify: Mengubah teks input (misal "x3 - 5*x + 1") menjadi ekspresi matematika yang dipahami SymPy.
 -sp.lambdify: Mengubah ekspresi SymPy tersebut menjadi fungsi Python biasa (f) yang sangat cepat dihitung saat kita memasukkan nilai x.
