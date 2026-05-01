@@ -1,3 +1,7 @@
+# PPT 3
+
+## A. Kode Penuh 
+
 import tkinter as tk
 from tkinter import messagebox
 import sympy as sp
@@ -88,3 +92,8 @@ text_output = tk.Text(root, height=12, width=65, font=("Courier", 9))
 text_output.grid(row=7, column=0, columnspan=2)
 
 root.mainloop()
+
+
+
+## A. Langkah langkah kode
+
