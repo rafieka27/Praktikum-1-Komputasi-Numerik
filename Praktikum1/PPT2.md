@@ -12,6 +12,7 @@ def make_function(expr):
         return eval(expr, {"__builtins__": {}}, {"x": x, "math": math, "np": np})
 
     return f
+
 def regula_falsi(f, a, b, tol=1e-4, max_iter=100):
     if f(a) * f(b) >= 0:
         print("Interval tidak valid!")
