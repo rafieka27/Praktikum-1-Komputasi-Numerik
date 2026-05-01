@@ -94,6 +94,5 @@ text_output.grid(row=7, column=0, columnspan=2)
 root.mainloop()
 ```
 
-
-## A. Langkah langkah kode
+## B. Langkah langkah kode
 
